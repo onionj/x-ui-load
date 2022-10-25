@@ -2,7 +2,8 @@
 
 
 ## Usage:
-- `git clone THIS_PROJECT`
-- `cd x-ui_load`
+- `git clone https://github.com/onionj/x-ui-load.git`
+- `cd x-ui-load`
 - `pip install -r requirements.txt`
+- Edit main.py and change `USERNAME`, `PASSWORD`, `IP`
 - `python3 main.py`
