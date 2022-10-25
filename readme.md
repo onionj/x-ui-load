@@ -7,3 +7,5 @@
 - `pip install -r requirements.txt`
 - Edit main.py and change `USERNAME`, `PASSWORD`, `IP`
 - `python3 main.py`
+
+x-ui project: `https://github.com/vaxilu/x-ui`
