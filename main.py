@@ -208,14 +208,14 @@ class Load:
             list(
                 f" {'total':6}:   "
                 f"D: {self._sizeof_fmt(last_up_down['total_down'] - last_up_down['first_total_down'])}/S  "
-                f"U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])} / S "
+                f"U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])}/S "
             )
         ) # line 15
         self.chart.append(
             list(
                 f" {'speed':6}:   "
                 f"D: {self._sizeof_fmt(int(last_up_down['down'] // last_up_down['time_interval']))}/S  "
-                f"U: {self._sizeof_fmt(int(last_up_down['up'] // last_up_down['time_interval']))} / S"
+                f"U: {self._sizeof_fmt(int(last_up_down['up'] // last_up_down['time_interval']))}/S"
             )
         ) # line 16
         self.chart.append(list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago")) # line 17
