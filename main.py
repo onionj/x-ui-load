@@ -1,16 +1,12 @@
 from typing import Dict, Optional, TypedDict, List
-import time
 from threading import Thread
+from getpass import getpass
+import argparse
+import time
 
-import requests
 from pynput import keyboard
 from pynput.keyboard import Key
-
-# Change these:
-
-IP = "http://localhost:54321"  # x-ui pannel ip:port
-USERNAME = ""  # panel user
-PASSWORD = ""  # panel pass
+import requests
 
 
 class UpDownData(TypedDict):
@@ -28,11 +24,16 @@ class UpDownData(TypedDict):
 class Load:
     """get users upload/download from X-UI APIs and show charts"""
 
-    def __init__(self) -> None:
+    def __init__(self, panel_ip_address: str, panel_username: str, panel_password: str) -> None:
+        self.panel_ip_address = panel_ip_address
+        self.panel_username = panel_username
+        self.panel_password = panel_password
         self.requests_session = requests.Session()
         self.login_session = None
+
         self.active_chart: int = None
         self.users_up_down_time_line: Dict[str, List[UpDownData]] = {}
+
         self.main_window_update_sleep = 0.01
         self.get_data_update_sleep = 8
         self.chart_time_line_len = 20
@@ -44,9 +45,9 @@ class Load:
     def login(self):
         try:
             res = self.requests_session.post(
-                f"{IP}/login/",
-                data={"username": USERNAME, "password": PASSWORD},
-                timeout=2,
+                f"{self.panel_ip_address}/login/",
+                data={"username": self.panel_username, "password": self.panel_password},
+                timeout=3,
             )
 
             if res.ok and (res.json())["success"] == True:
@@ -55,7 +56,7 @@ class Load:
 
             return False
 
-        except KeyboardInterrupt as e:
+        except Exception as e:
             print("error-5:", e)
             return False
 
@@ -82,9 +83,9 @@ class Load:
 
         try:
             res = self.requests_session.post(
-                f"{IP}/xui/inbound/list",
+                f"{self.panel_ip_address}/xui/inbound/list",
                 cookies={"session": self.login_session},
-                timeout=2,
+                timeout=3,
             )
 
             if res.ok and (data := res.json())["success"] == True:
@@ -93,10 +94,10 @@ class Load:
                 self._append_to_users_up_down_time_line(up_down_datas)
                 return
 
-            print("error-1:", res.status_code)
+            self.chart_log_line = f"error-1: {res.status_code}"
 
-        except KeyboardInterrupt as e:
-            print("error-2:", e)
+        except Exception as e:
+            self.chart_log_line = f"error-1: {e}"
 
     def _extract_request_data(self, datas) -> List[UpDownData]:
 
@@ -199,30 +200,30 @@ class Load:
                 self.chart[i].append("#" if user_up_down["down"] > int(self.chart[i][0]) else ".")
                 self.chart[i].append("#" if user_up_down["up"] > int(self.chart[i][0]) else ".")
 
-        self.chart.append(list(f" {' __' * self.chart_time_line_len}")) # line 11
+        self.chart.append(list(f" {' __' * self.chart_time_line_len}"))  # line 11
 
-        self.chart.append(list(f" [down-up] / S")) # line 12
-        self.chart.append(list(" ")) # line 13
-        self.chart.append(list(f" {'user':6}:   {user_name}")) # line 14
+        self.chart.append(list(f" [down-up] / S"))  # line 12
+        self.chart.append(list(" "))  # line 13
+        self.chart.append(list(f" {'user':6}:   {user_name}"))  # line 14
         self.chart.append(
             list(
                 f" {'total':6}:   "
                 f"D: {self._sizeof_fmt(last_up_down['total_down'] - last_up_down['first_total_down'])}/S  "
                 f"U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])}/S "
             )
-        ) # line 15
+        )  # line 15
         self.chart.append(
             list(
                 f" {'speed':6}:   "
                 f"D: {self._sizeof_fmt(int(last_up_down['down'] // last_up_down['time_interval']))}/S  "
                 f"U: {self._sizeof_fmt(int(last_up_down['up'] // last_up_down['time_interval']))}/S"
             )
-        ) # line 16
-        self.chart.append(list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago")) # line 17
-        self.chart.append(list(" ")) # line 18
-        self.chart.append(list(" use arrow keys for change user. ( <-  -> )")) # line 19
-        self.chart.append(list(" " + self.page_nuumber_line)) # 20
-        self.chart.append(list(" " + self.chart_log_line)) # 21
+        )  # line 16
+        self.chart.append(list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago"))  # line 17
+        self.chart.append(list(" "))  # line 18
+        self.chart.append(list(" use arrow keys for change user. ( <-  -> )"))  # line 19
+        self.chart.append(list(" " + self.page_nuumber_line))  # 20
+        self.chart.append(list(" " + self.chart_log_line))  # 21
 
     def _clear_chart(self):
         LINE_UP = "\033[1A"  # The ANSI code that is assigned to LINE_UP indicates that the cursor should move up a single line.
@@ -275,7 +276,18 @@ class Load:
 
 if __name__ == "__main__":
 
-    load = Load()
+    parser = argparse.ArgumentParser(
+        prog="python3 main.py",
+        description="teminal user load panel for X-UI project (xray)",
+    )
+
+    parser.add_argument("-a", "--address", help="panel address, example: `http://localhost:54321`", required=True)
+    parser.add_argument("-u", "--username", help="panel username", required=True)
+    args = parser.parse_args()
+
+    panel_password = getpass("password: ")
+
+    load = Load(panel_ip_address=args.address, panel_username=args.username, panel_password=panel_password)
 
     # login to panel
     ok = load.login()
