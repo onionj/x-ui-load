@@ -32,11 +32,12 @@ class Load:
         self.login_session = None
         self.active_chart: int = None
         self.users_up_down_time_line: Dict[str, List[UpDownData]] = {}
-        self.main_window_update_sleep = 0.1
+        self.main_window_update_sleep = 0.01
         self.get_data_update_sleep = 8
         self.chart_time_line_len = 20
         self.chart = []
         self.itrate_count = 0
+        self.page_nuumber_line = ""
 
     def login(self):
         try:
@@ -222,9 +223,12 @@ class Load:
                 f" {'speed':6}:   D: {self._sizeof_fmt(last_up_down['down'] // self.get_data_update_sleep +1 )}/S  U: {self._sizeof_fmt(last_up_down['up'] // self.get_data_update_sleep +1)} / S"
             )
         )
-        self.chart.append(list(f" {'time':6}:   {last_up_down['time']}"))
+        self.chart.append(
+            list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago")
+        )
         self.chart.append(list(" "))
         self.chart.append(list(" use arrow keys for change user. ( <-  -> )"))
+        self.chart.append(list(" " + self.page_nuumber_line))
 
     def _clear_chart(self):
         LINE_UP = "\033[1A"  # The ANSI code that is assigned to LINE_UP indicates that the cursor should move up a single line.
@@ -255,16 +259,17 @@ class Load:
             print(line)
 
     def on_press_key(self, key):
-
         names = list(self.users_up_down_time_line.values())
 
         if key == Key.right:
-            self.active_chart += 1
-            return
+            if not self.active_chart >= len(names) - 1:
+                self.active_chart += 1
 
-        if key == Key.left:
-            self.active_chart -= 1
-            return
+        elif key == Key.left:
+            if not self.active_chart == 0:
+                self.active_chart -= 1
+        
+        self.page_nuumber_line = f" {self.active_chart} / {len(names) - 1}"
 
         LINE_CLEAR = "\x1b[2K"  # The ANSI code that is assigned to `LINE_CLEAR` erases the line where the cursor is located.
         print("", end=LINE_CLEAR)
