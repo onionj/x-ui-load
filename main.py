@@ -22,6 +22,7 @@ class UpDownData(TypedDict):
     up: int
     first_total_down: int
     first_total_up: int
+    time_interval: int  # time interval with the previous request
 
 
 class Load:
@@ -38,6 +39,7 @@ class Load:
         self.chart = []
         self.itrate_count = 0
         self.page_nuumber_line = ""
+        self.chart_log_line = ""
 
     def login(self):
         try:
@@ -73,7 +75,7 @@ class Load:
                 self._show_chart()
                 time.sleep(self.main_window_update_sleep)
             except:
-                time.sleep(1)
+                time.sleep(0.1)
 
     def _update(self):
         """call `/xui/inbound/list` api and save new data"""
@@ -106,10 +108,9 @@ class Load:
             name = f"{data['id']:0=2}-{data['remark']}"
             total_down = data["down"]
             total_up = data["up"]
-            down = total_down - (
-                self._user_last_down_up(name, "total_down") or total_down
-            )
-            up = total_up - (self._user_last_down_up(name, "total_up") or total_up)
+            down = total_down - (self._user_previous_down_up(name, "total_down") or total_down)
+            up = total_up - (self._user_previous_down_up(name, "total_up") or total_up)
+            time_interval = (now - (self._user_previous_down_up(name, "time") or now)) + 0.001
 
             update_data = UpDownData(
                 time=now,
@@ -118,10 +119,9 @@ class Load:
                 total_up=total_up,
                 down=down,
                 up=up,
-                first_total_down=self._user_last_down_up(name, "first_total_down")
-                or total_down,
-                first_total_up=self._user_last_down_up(name, "first_total_up")
-                or total_up,
+                first_total_down=self._user_previous_down_up(name, "first_total_down") or total_down,
+                first_total_up=self._user_previous_down_up(name, "first_total_up") or total_up,
+                time_interval=time_interval,
             )
             up_down_datas.append(update_data)
 
@@ -141,9 +141,7 @@ class Load:
             if len(user_up_down_time_line) > self.chart_time_line_len:
                 self.users_up_down_time_line[user].pop(0)
 
-    def _user_max_up_or_down_in_time_line(
-        self, user_up_down_time_line: List[UpDownData]
-    ) -> int:
+    def _user_max_up_or_down_in_time_line(self, user_up_down_time_line: List[UpDownData]) -> int:
         max_up_or_down = 0
 
         for data in user_up_down_time_line:
@@ -156,7 +154,7 @@ class Load:
 
         return max_up_or_down
 
-    def _user_last_down_up(self, name, filed) -> Optional[UpDownData]:
+    def _user_previous_down_up(self, name, filed) -> Optional[UpDownData]:
         if name in self.users_up_down_time_line:
             return self.users_up_down_time_line[name][-1][filed]
         return None
@@ -177,62 +175,60 @@ class Load:
 
     def _create_chart(self, user_name: str):
 
-        user_up_down_time_line: List[UpDownData] = self.users_up_down_time_line[
-            user_name
-        ]
-        user_max_up_down = self._user_max_up_or_down_in_time_line(
-            user_up_down_time_line
-        )
+        user_up_down_time_line: List[UpDownData] = self.users_up_down_time_line[user_name]
+        last_up_down = user_up_down_time_line[-1]
+        user_max_up_down = self._user_max_up_or_down_in_time_line(user_up_down_time_line)
+        user_max_up_down = int(user_max_up_down // last_up_down["time_interval"])
 
         self.chart: List[List[str]] = [
-            [user_max_up_down],  # 1
-            [int(user_max_up_down * 0.9)],  # 2
-            [int(user_max_up_down * 0.8)],  # 3
-            [int(user_max_up_down * 0.7)],  # 4
-            [int(user_max_up_down * 0.6)],  # 5
-            [int(user_max_up_down * 0.5)],  # 6
-            [int(user_max_up_down * 0.4)],  # 7
-            [int(user_max_up_down * 0.3)],  # 8
-            [int(user_max_up_down * 0.2)],  # 9
-            [0],  # 10
+            [user_max_up_down],  # line 1
+            [int(user_max_up_down * 0.9)],  # line 2
+            [int(user_max_up_down * 0.8)],  # line 3
+            [int(user_max_up_down * 0.7)],  # line 4
+            [int(user_max_up_down * 0.6)],  # line 5
+            [int(user_max_up_down * 0.5)],  # line 6
+            [int(user_max_up_down * 0.4)],  # line 7
+            [int(user_max_up_down * 0.3)],  # line 8
+            [int(user_max_up_down * 0.2)],  # line 9
+            [0],  # line 10
         ]
 
         for user_up_down in user_up_down_time_line:
             for i in range(0, 10):
                 self.chart[i].append(" ")
-                self.chart[i].append(
-                    "#" if user_up_down["down"] > int(self.chart[i][0]) else "."
-                )
-                self.chart[i].append(
-                    "#" if user_up_down["up"] > int(self.chart[i][0]) else "."
-                )
+                self.chart[i].append("#" if user_up_down["down"] > int(self.chart[i][0]) else ".")
+                self.chart[i].append("#" if user_up_down["up"] > int(self.chart[i][0]) else ".")
 
-        last_up_down = user_up_down_time_line[-1]
+        self.chart.append(list(f" {' __' * self.chart_time_line_len}")) # line 11
 
-        self.chart.append(list(f" {' __' * self.chart_time_line_len}"))
-        self.chart.append(list(f" [down-up] / {self.get_data_update_sleep} S"))
-        self.chart.append(list(" "))
-        self.chart.append(list(f" {'user':6}:   {user_name}"))
+        self.chart.append(list(f" [down-up] / S")) # line 12
+        self.chart.append(list(" ")) # line 13
+        self.chart.append(list(f" {'user':6}:   {user_name}")) # line 14
         self.chart.append(
             list(
-                f" {'total':6}:   D: {self._sizeof_fmt(last_up_down['total_down'] - last_up_down['first_total_down'])}/S  U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])} / S "
+                f" {'total':6}:   "
+                f"D: {self._sizeof_fmt(last_up_down['total_down'] - last_up_down['first_total_down'])}/S  "
+                f"U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])} / S "
             )
-        )
+        ) # line 15
         self.chart.append(
             list(
-                f" {'speed':6}:   D: {self._sizeof_fmt(last_up_down['down'] // self.get_data_update_sleep +1 )}/S  U: {self._sizeof_fmt(last_up_down['up'] // self.get_data_update_sleep +1)} / S"
+                f" {'speed':6}:   "
+                f"D: {self._sizeof_fmt(int(last_up_down['down'] // last_up_down['time_interval']))}/S  "
+                f"U: {self._sizeof_fmt(int(last_up_down['up'] // last_up_down['time_interval']))} / S"
             )
-        )
-        self.chart.append(
-            list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago")
-        )
-        self.chart.append(list(" "))
-        self.chart.append(list(" use arrow keys for change user. ( <-  -> )"))
-        self.chart.append(list(" " + self.page_nuumber_line))
+        ) # line 16
+        self.chart.append(list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago")) # line 17
+        self.chart.append(list(" ")) # line 18
+        self.chart.append(list(" use arrow keys for change user. ( <-  -> )")) # line 19
+        self.chart.append(list(" " + self.page_nuumber_line)) # 20
+        self.chart.append(list(" " + self.chart_log_line)) # 21
 
     def _clear_chart(self):
         LINE_UP = "\033[1A"  # The ANSI code that is assigned to LINE_UP indicates that the cursor should move up a single line.
-        LINE_CLEAR = "\x1b[2K"  # The ANSI code that is assigned to `LINE_CLEAR` erases the line where the cursor is located.
+        LINE_CLEAR = (
+            "\x1b[2K"  # The ANSI code that is assigned to `LINE_CLEAR` erases the line where the cursor is located.
+        )
 
         for _ in self.chart:
             print(LINE_UP, end=LINE_CLEAR)
@@ -268,10 +264,12 @@ class Load:
         elif key == Key.left:
             if not self.active_chart == 0:
                 self.active_chart -= 1
-        
+
         self.page_nuumber_line = f" {self.active_chart} / {len(names) - 1}"
 
-        LINE_CLEAR = "\x1b[2K"  # The ANSI code that is assigned to `LINE_CLEAR` erases the line where the cursor is located.
+        LINE_CLEAR = (
+            "\x1b[2K"  # The ANSI code that is assigned to `LINE_CLEAR` erases the line where the cursor is located.
+        )
         print("", end=LINE_CLEAR)
 
 
