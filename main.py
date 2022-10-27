@@ -1,5 +1,5 @@
 from typing import Dict, Optional, TypedDict, List
-from threading import Thread
+from threading import Thread, main_thread
 from getpass import getpass
 import argparse
 import time
@@ -36,7 +36,7 @@ class Load:
 
         self.main_window_update_sleep = 0.01
         self.get_data_update_sleep = 8
-        self.chart_time_line_len = 20
+        self.chart_time_line_len = 45
         self.chart = []
         self.itrate_count = 0
         self.page_nuumber_line = ""
@@ -60,14 +60,14 @@ class Load:
             print("error-5:", e)
             return False
 
-    def lop_update(self):
-        while True:
+    def lop_get_update(self):
+        while main_thread().is_alive():
             self._update()
             self._clear_old_datas()
             time.sleep(self.get_data_update_sleep)
 
-    def main_window(self):
-        while True:
+    def lop_show_main_window(self):
+        while main_thread().is_alive():
             try:
                 names = list(self.users_up_down_time_line.keys())
                 if self.active_chart is None:
@@ -75,8 +75,9 @@ class Load:
                 self._create_chart(names[self.active_chart])
                 self._show_chart()
                 time.sleep(self.main_window_update_sleep)
-            except:
-                time.sleep(0.1)
+
+            except IndexError:
+                time.sleep(self.main_window_update_sleep)
 
     def _update(self):
         """call `/xui/inbound/list` api and save new data"""
@@ -85,7 +86,7 @@ class Load:
             res = self.requests_session.post(
                 f"{self.panel_ip_address}/xui/inbound/list",
                 cookies={"session": self.login_session},
-                timeout=3,
+                timeout=2,
             )
 
             if res.ok and (data := res.json())["success"] == True:
@@ -98,6 +99,7 @@ class Load:
 
         except Exception as e:
             self.chart_log_line = f"error-1: {e}"
+            time.sleep(1)
 
     def _extract_request_data(self, datas) -> List[UpDownData]:
 
@@ -142,18 +144,17 @@ class Load:
             if len(user_up_down_time_line) > self.chart_time_line_len:
                 self.users_up_down_time_line[user].pop(0)
 
-    def _user_max_up_or_down_in_time_line(self, user_up_down_time_line: List[UpDownData]) -> int:
-        max_up_or_down = 0
+    def _user_max_up_down_in_time_line(self, user_up_down_time_line: List[UpDownData]) -> int:
+        max_up_down = 0
 
         for data in user_up_down_time_line:
 
-            if data["up"] > max_up_or_down:
-                max_up_or_down = data["up"]
+            sum_up_and_down = data["up"] + data["down"]
 
-            if data["down"] > max_up_or_down:
-                max_up_or_down = data["down"]
+            if sum_up_and_down > max_up_down:
+                max_up_down = sum_up_and_down
 
-        return max_up_or_down
+        return max_up_down
 
     def _user_previous_down_up(self, name, filed) -> Optional[UpDownData]:
         if name in self.users_up_down_time_line:
@@ -178,7 +179,7 @@ class Load:
 
         user_up_down_time_line: List[UpDownData] = self.users_up_down_time_line[user_name]
         last_up_down = user_up_down_time_line[-1]
-        user_max_up_down = self._user_max_up_or_down_in_time_line(user_up_down_time_line)
+        user_max_up_down = self._user_max_up_down_in_time_line(user_up_down_time_line)
         user_max_up_down = int(user_max_up_down // last_up_down["time_interval"])
 
         self.chart: List[List[str]] = [
@@ -196,43 +197,50 @@ class Load:
 
         for user_up_down in user_up_down_time_line:
             for i in range(0, 10):
-                self.chart[i].append(" ")
-                self.chart[i].append("#" if user_up_down["down"] > int(self.chart[i][0]) else ".")
-                self.chart[i].append("#" if user_up_down["up"] > int(self.chart[i][0]) else ".")
+                user_sum_down_up = user_up_down["down"] + user_up_down["up"]
+                user_sum_down_up_per_second = user_sum_down_up // last_up_down["time_interval"]
 
-        self.chart.append(list(f" {' __' * self.chart_time_line_len}"))  # line 11
+                if user_sum_down_up_per_second != 0 and user_sum_down_up_per_second >= int(self.chart[i][0]):
+                    self.chart[i].append("#")
+                else:
+                    self.chart[i].append(".")
 
-        self.chart.append(list(f" [down-up] / S"))  # line 12
-        self.chart.append(list(" "))  # line 13
-        self.chart.append(list(f" {'user':6}:   {user_name}"))  # line 14
+        self.chart.append(list(f" {'-' * self.chart_time_line_len}"))  # line 11
+
+        self.chart.append(list(f" [down + up] / second"))  # line 13
+        self.chart.append(list(" "))  # line 14
+        self.chart.append(list(f" {'user':6}:   {user_name}"))  # line 15
         self.chart.append(
             list(
                 f" {'total':6}:   "
                 f"D: {self._sizeof_fmt(last_up_down['total_down'] - last_up_down['first_total_down'])}/S  "
                 f"U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])}/S "
             )
-        )  # line 15
+        )  # line 16
         self.chart.append(
             list(
                 f" {'speed':6}:   "
                 f"D: {self._sizeof_fmt(int(last_up_down['down'] // last_up_down['time_interval']))}/S  "
                 f"U: {self._sizeof_fmt(int(last_up_down['up'] // last_up_down['time_interval']))}/S"
             )
-        )  # line 16
-        self.chart.append(list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago"))  # line 17
-        self.chart.append(list(" "))  # line 18
-        self.chart.append(list(" use arrow keys for change user. ( <-  -> )"))  # line 19
-        self.chart.append(list(" " + self.page_nuumber_line))  # 20
-        self.chart.append(list(" " + self.chart_log_line))  # 21
+        )  # line 17
+        self.chart.append(list(f" {'last update':6}:   {int(time.time() - last_up_down['time'])} S ago"))  # line 18
+        self.chart.append(list(" "))  # line 19
+        self.chart.append(list(" use arrow keys for change user. ( <-  -> )"))  # line 20
+        self.chart.append(list(" " + str(self.page_nuumber_line)))  # 21
+        self.chart.append(list(" " + str(self.chart_log_line)))  # 22
 
-    def _clear_chart(self):
+    @staticmethod
+    def clear_one_line():
         LINE_UP = "\033[1A"  # The ANSI code that is assigned to LINE_UP indicates that the cursor should move up a single line.
         LINE_CLEAR = (
             "\x1b[2K"  # The ANSI code that is assigned to `LINE_CLEAR` erases the line where the cursor is located.
         )
+        print(LINE_UP, end=LINE_CLEAR)
 
+    def _clear_chart(self):
         for _ in self.chart:
-            print(LINE_UP, end=LINE_CLEAR)
+            self.clear_one_line()
 
     def _sizeof_fmt(self, size):
         if type(size) == int:
@@ -286,6 +294,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     panel_password = getpass("password: ")
+    Load.clear_one_line()
 
     load = Load(panel_ip_address=args.address, panel_username=args.username, panel_password=panel_password)
 
@@ -295,8 +304,8 @@ if __name__ == "__main__":
         print("error-3: login failed")
         exit(-1)
 
-    Thread(target=load.lop_update).start()  # start lop for get update from server
-    Thread(target=load.main_window).start()  # start lop for show chart
+    Thread(target=load.lop_get_update).start()  # start lop for get update from server
+    Thread(target=load.lop_show_main_window).start()  # start lop for show chart
 
     # bind arrow keys to on_press_key function
     with keyboard.Listener(on_press=load.on_press_key) as listener:
