@@ -2,6 +2,7 @@ from typing import Dict, Optional, TypedDict, List
 from threading import Thread, main_thread
 from getpass import getpass
 import argparse
+import datetime
 import time
 
 from pynput import keyboard
@@ -18,6 +19,7 @@ class UpDownData(TypedDict):
     up: int
     first_total_down: int
     first_total_up: int
+    first_time: float
     time_interval: int  # time interval with the previous request
 
 
@@ -124,6 +126,7 @@ class Load:
                 up=up,
                 first_total_down=self._user_previous_down_up(name, "first_total_down") or total_down,
                 first_total_up=self._user_previous_down_up(name, "first_total_up") or total_up,
+                first_time=self._user_previous_down_up(name, "first_time") or now,
                 time_interval=time_interval,
             )
             up_down_datas.append(update_data)
@@ -213,8 +216,9 @@ class Load:
         self.chart.append(
             list(
                 f" {'total':6}:   "
-                f"D: {self._sizeof_fmt(last_up_down['total_down'] - last_up_down['first_total_down'])}/S  "
-                f"U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])}/S "
+                f"D: {self._sizeof_fmt(last_up_down['total_down'] - last_up_down['first_total_down'])}  "
+                f"U: {self._sizeof_fmt(last_up_down['total_up'] - last_up_down['first_total_up'])} "
+                f"in {str(datetime.timedelta(seconds=round((last_up_down['time'] - last_up_down['first_time']))))} "
             )
         )  # line 16
         self.chart.append(
