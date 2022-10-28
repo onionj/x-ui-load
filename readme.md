@@ -1,4 +1,4 @@
-# teminal user load panel for [X-UI project (xray)](https://github.com/vaxilu/x-ui)
+# A terminal  user load panel for [X-UI project (xray)](https://github.com/vaxilu/x-ui)
 
 
 ## Usage:
