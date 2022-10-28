@@ -1,4 +1,4 @@
-# teminal user load panel for X-UI project (xray)
+# teminal user load panel for [X-UI project (xray)](https://github.com/vaxilu/x-ui)
 
 
 ## Usage:
@@ -6,8 +6,6 @@
 - `cd x-ui-load`
 - `pip install -r requirements.txt`
 - `python3 main.py -a [ADDRESS] -u [USERNAME]` for example `python3 main.py -a http://127.0.0.1:54321 -u admin`: 
-
-x-ui project: `https://github.com/vaxilu/x-ui`
 
 
 ```
