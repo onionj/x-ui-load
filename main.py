@@ -27,7 +27,7 @@ class Load:
     """get users upload/download from X-UI APIs and show charts"""
 
     def __init__(self, panel_ip_address: str, panel_username: str, panel_password: str) -> None:
-        self.panel_ip_address = panel_ip_address
+        self.panel_ip_address = panel_ip_address.rstrip("/")
         self.panel_username = panel_username
         self.panel_password = panel_password
         self.requests_session = requests.Session()
